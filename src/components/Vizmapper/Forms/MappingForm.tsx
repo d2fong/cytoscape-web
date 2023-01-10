@@ -47,6 +47,7 @@ const mappingFnIconMap: Record<MappingFunctionType, React.ReactElement> = {
 function MappingFormContent(props: {
   currentNetworkId: IdType
   visualProperty: VisualProperty<VisualPropertyValueType>
+  currentVisualStyleName: string
 }): React.ReactElement {
   const [attribute, setAttribute] = React.useState(
     props.visualProperty.mapping?.attribute ?? '',
@@ -98,6 +99,7 @@ function MappingFormContent(props: {
                 onValueChange={(newValue: VisualPropertyValueType) => {
                   setDiscreteMappingValue(
                     props.currentNetworkId,
+                    props.currentVisualStyleName,
                     props.visualProperty.name,
                     value,
                     newValue,
@@ -110,6 +112,7 @@ function MappingFormContent(props: {
                 onClick={() =>
                   deleteDiscreteMappingValue(
                     props.currentNetworkId,
+                    props.currentVisualStyleName,
                     props.visualProperty.name,
                     value,
                   )
@@ -210,6 +213,7 @@ function MappingFormContent(props: {
 export function MappingForm(props: {
   currentNetworkId: IdType
   visualProperty: VisualProperty<VisualPropertyValueType>
+  currentVisualStyleName: string
   sx?: SxProps
 }): React.ReactElement {
   const [formAnchorEl, setFormAnchorEl] = React.useState<Element | null>(null)

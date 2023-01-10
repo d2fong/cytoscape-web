@@ -14,7 +14,7 @@ import { DiscreteMappingFunction } from '../models/VisualStyleModel/VisualMappin
 //  * Visual Style State manager based on zustand
 //  */
 interface VisualStyleState {
-  visualStyles: Record<IdType, VisualStyle>
+  visualStyles: Record<IdType, Record<string, VisualStyle>>
 }
 
 /**
@@ -23,28 +23,37 @@ interface VisualStyleState {
 interface UpdateVisualStyleAction {
   setDefault: (
     networkId: IdType,
+    visualStyleName: string,
     vpName: VisualPropertyName,
     vpValue: VisualPropertyValueType,
   ) => void
   setBypass: (
     networkId: IdType,
+    visualStyleName: string,
+
     vpName: VisualPropertyName,
     elementIds: IdType[],
     vpValue: VisualPropertyValueType,
   ) => void
   deleteBypass: (
     networkId: IdType,
+    visualStyleName: string,
+
     vpName: VisualPropertyName,
     elementIds: IdType[],
   ) => void
   setDiscreteMappingValue: (
     networkId: IdType,
+    visualStyleName: string,
+
     vpName: VisualPropertyName,
     value: ValueType,
     vpValue: VisualPropertyValueType,
   ) => void
   deleteDiscreteMappingValue: (
     networkId: IdType,
+    visualStyleName: string,
+
     vpName: VisualPropertyName,
     value: ValueType,
   ) => void
@@ -52,7 +61,11 @@ interface UpdateVisualStyleAction {
 }
 
 interface VisualStyleAction {
-  set: (networkId: IdType, visualStyle: VisualStyle) => void
+  set: (
+    networkId: IdType,
+    visualStyleName: string,
+    visualStyle: VisualStyle,
+  ) => void
   //   reset: () => void
 
   //   add: (network: Network) => void
@@ -65,32 +78,46 @@ export const useVisualStyleStore = create(
     (set) => ({
       visualStyles: {},
 
-      set: (networkId: IdType, visualStyle: VisualStyle) => {
+      set: (
+        networkId: IdType,
+        visualStyleName: string,
+        visualStyle: VisualStyle,
+      ) => {
         set((state) => {
-          state.visualStyles[networkId] = visualStyle
+          const styles = state.visualStyles[networkId]
+
+          if (styles != null) {
+            styles[visualStyleName] = visualStyle
+          }
           return state
         })
       },
 
       setDefault: (
         networkId: IdType,
+        visualStyleName: string,
+
         vpName: VisualPropertyName,
         vpValue: VisualPropertyValueType,
       ) => {
         set((state) => {
-          state.visualStyles[networkId][vpName].defaultValue = vpValue
+          state.visualStyles[networkId][visualStyleName][vpName].defaultValue =
+            vpValue
           return state
         })
       },
 
       setBypass: (
         networkId: IdType,
+        visualStyleName: string,
+
         vpName: VisualPropertyName,
         elementIds: IdType[],
         vpValue: VisualPropertyValueType,
       ) => {
         set((state) => {
-          const bypassMap = state.visualStyles[networkId][vpName].bypassMap
+          const bypassMap =
+            state.visualStyles[networkId][visualStyleName][vpName].bypassMap
 
           elementIds.forEach((eleId) => {
             bypassMap.set(eleId, vpValue)
@@ -99,9 +126,15 @@ export const useVisualStyleStore = create(
           return state
         })
       },
-      deleteBypass(networkId, vpName, elementIds: IdType[]) {
+      deleteBypass(
+        networkId: IdType,
+        visualStyleName: string,
+        vpName: VisualPropertyName,
+        elementIds: IdType[],
+      ) {
         set((state) => {
-          const bypassMap = state.visualStyles[networkId][vpName].bypassMap
+          const bypassMap =
+            state.visualStyles[networkId][visualStyleName][vpName].bypassMap
           elementIds.forEach((eleId) => {
             bypassMap.delete(eleId)
           })
@@ -109,18 +142,29 @@ export const useVisualStyleStore = create(
           return state
         })
       },
-      setDiscreteMappingValue: (networkId, vpName, value, vpValue) => {
+      setDiscreteMappingValue: (
+        networkId: IdType,
+        visualStyleName: string,
+        vpName: VisualPropertyName,
+        value: ValueType,
+        vpValue: VisualPropertyValueType,
+      ) => {
         set((state) => {
-          const mapping = state.visualStyles[networkId][vpName]
+          const mapping = state.visualStyles[networkId][visualStyleName][vpName]
             .mapping as DiscreteMappingFunction
           if (mapping?.vpValueMap != null) {
             mapping?.vpValueMap.set(value, vpValue)
           }
         })
       },
-      deleteDiscreteMappingValue: (networkId, vpName, value) => {
+      deleteDiscreteMappingValue: (
+        networkId: IdType,
+        visualStyleName: string,
+        vpName: VisualPropertyName,
+        value: ValueType,
+      ) => {
         set((state) => {
-          const mapping = state.visualStyles[networkId][vpName]
+          const mapping = state.visualStyles[networkId][visualStyleName][vpName]
             .mapping as DiscreteMappingFunction
           if (mapping?.vpValueMap != null) {
             mapping?.vpValueMap.delete(value)

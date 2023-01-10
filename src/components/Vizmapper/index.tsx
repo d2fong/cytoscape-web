@@ -1,5 +1,15 @@
 import * as React from 'react'
-import { Box, Typography, Tabs, Tab } from '@mui/material'
+import {
+  Box,
+  Typography,
+  Tabs,
+  Tab,
+  Select,
+  FormControl,
+  InputLabel,
+  MenuItem,
+} from '@mui/material'
+import { SelectChangeEvent } from '@mui/material/Select'
 
 import { IdType } from '../../models/IdType'
 import VisualStyleFn, {
@@ -16,9 +26,10 @@ import { DefaultValueForm } from './Forms/DefaultValueForm'
 
 function VisualPropertyView(props: {
   currentNetworkId: IdType
+  currentVisualStyleName: string
   visualProperty: VisualProperty<VisualPropertyValueType>
 }): React.ReactElement {
-  const { visualProperty, currentNetworkId } = props
+  const { visualProperty, currentNetworkId, currentVisualStyleName } = props
 
   return (
     <Box
@@ -32,16 +43,19 @@ function VisualPropertyView(props: {
       <DefaultValueForm
         sx={{ mr: 1 }}
         visualProperty={visualProperty}
+        currentVisualStyleName={currentVisualStyleName}
         currentNetworkId={currentNetworkId}
       />
       <MappingForm
         sx={{ mr: 1 }}
         currentNetworkId={currentNetworkId}
+        currentVisualStyleName={currentVisualStyleName}
         visualProperty={visualProperty}
       />
       <BypassForm
         sx={{ mr: 1 }}
         currentNetworkId={currentNetworkId}
+        currentVisualStyleName={currentVisualStyleName}
         visualProperty={visualProperty}
       />
       <Box sx={{ ml: 1 }}>{visualProperty.displayName}</Box>
@@ -53,46 +67,66 @@ export default function VizmapperView(props: {
   currentNetworkId: IdType
 }): React.ReactElement {
   const [currentTabIndex, setCurrentTabIndex] = React.useState(0)
-  const visualStyles: Record<IdType, VisualStyle> = useVisualStyleStore(
-    (state) => state.visualStyles,
+  const [selectedVisualStyleIndex, setSelectedVisualStyleIndex] =
+    React.useState(0)
+  const visualStyles: Record<
+    IdType,
+    Record<string, VisualStyle>
+  > = useVisualStyleStore((state) => state.visualStyles)
+
+  const changeSelectedVisualStyle = (e: SelectChangeEvent): void => {
+    setSelectedVisualStyleIndex(+e.target.value as unknown as number)
+  }
+
+  const visualStylesList = Object.entries(
+    visualStyles[props.currentNetworkId] ?? {},
   )
 
-  const visualStyle = visualStyles[props.currentNetworkId]
+  const currentVisualStyle = visualStylesList[selectedVisualStyleIndex]
 
-  if (visualStyle == null) {
+  if (currentVisualStyle == null) {
     return <div></div>
   }
 
-  const nodeVps = VisualStyleFn.nodeVisualProperties(visualStyle).map((vp) => {
+  const [currentVisualStyleName, currentVisualStyleValues] = currentVisualStyle
+
+  const nodeVps = VisualStyleFn.nodeVisualProperties(
+    currentVisualStyleValues,
+  ).map((vp) => {
     return (
       <VisualPropertyView
         key={vp.name}
+        currentVisualStyleName={currentVisualStyleName}
         currentNetworkId={props.currentNetworkId}
         visualProperty={vp}
       />
     )
   })
-  const edgeVps = VisualStyleFn.edgeVisualProperties(visualStyle).map((vp) => {
+  const edgeVps = VisualStyleFn.edgeVisualProperties(
+    currentVisualStyleValues,
+  ).map((vp) => {
     return (
       <VisualPropertyView
         key={vp.name}
+        currentVisualStyleName={currentVisualStyleName}
         currentNetworkId={props.currentNetworkId}
         visualProperty={vp}
       />
     )
   })
 
-  const networkVps = VisualStyleFn.networkVisualProperties(visualStyle).map(
-    (vp) => {
-      return (
-        <VisualPropertyView
-          key={vp.name}
-          currentNetworkId={props.currentNetworkId}
-          visualProperty={vp}
-        />
-      )
-    },
-  )
+  const networkVps = VisualStyleFn.networkVisualProperties(
+    currentVisualStyleValues,
+  ).map((vp) => {
+    return (
+      <VisualPropertyView
+        key={vp.name}
+        currentVisualStyleName={currentVisualStyleName}
+        currentNetworkId={props.currentNetworkId}
+        visualProperty={vp}
+      />
+    )
+  })
 
   return (
     <Box
@@ -103,6 +137,24 @@ export default function VizmapperView(props: {
         width: '100%',
       }}
     >
+      <FormControl fullWidth>
+        <InputLabel id="visual-style-select">Visual Style</InputLabel>
+
+        <Select
+          labelId="visual-style-select"
+          value={String(selectedVisualStyleIndex)}
+          label="Visual Style"
+          onChange={changeSelectedVisualStyle}
+        >
+          {visualStylesList.map(([name, _], index) => {
+            return (
+              <MenuItem key={index} value={index}>
+                {name}
+              </MenuItem>
+            )
+          })}
+        </Select>
+      </FormControl>
       <Tabs
         value={currentTabIndex}
         TabIndicatorProps={{ sx: { backgroundColor: 'white' } }}

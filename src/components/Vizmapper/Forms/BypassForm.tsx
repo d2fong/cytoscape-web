@@ -33,9 +33,10 @@ import {
 
 function BypassFormContent(props: {
   currentNetworkId: IdType
+  currentVisualStyleName: string
   visualProperty: VisualProperty<VisualPropertyValueType>
 }): React.ReactElement {
-  const { visualProperty, currentNetworkId } = props
+  const { visualProperty, currentNetworkId, currentVisualStyleName } = props
   const [bypassValue, setBypassValue] = React.useState(
     visualProperty.defaultValue,
   )
@@ -139,12 +140,23 @@ function BypassFormContent(props: {
                 visualProperty={visualProperty}
                 currentValue={bypassValue}
                 onValueChange={(value) => {
-                  setBypass(currentNetworkId, visualProperty.name, [id], value)
+                  setBypass(
+                    currentNetworkId,
+                    currentVisualStyleName,
+                    visualProperty.name,
+                    [id],
+                    value,
+                  )
                 }}
               />
               <IconButton
                 onClick={() => {
-                  deleteBypass(currentNetworkId, visualProperty.name, [id])
+                  deleteBypass(
+                    currentNetworkId,
+                    currentVisualStyleName,
+                    visualProperty.name,
+                    [id],
+                  )
                   setHovered(currentNetworkId, null)
                 }}
                 disabled={!hasBypass}
@@ -169,6 +181,7 @@ function BypassFormContent(props: {
             const selectedElementIds = selectedElements.map((e) => e.id)
             setBypass(
               currentNetworkId,
+              currentVisualStyleName,
               visualProperty.name,
               selectedElementIds,
               bypassValue,
@@ -209,6 +222,7 @@ function BypassFormContent(props: {
 export function BypassForm(props: {
   currentNetworkId: IdType
   visualProperty: VisualProperty<VisualPropertyValueType>
+  currentVisualStyleName: string
   sx?: SxProps
 }): React.ReactElement {
   const [formAnchorEl, setFormAnchorEl] = React.useState<Element | null>(null)

@@ -58,7 +58,7 @@ const WorkSpaceEditor: React.FC = () => {
       const { network, nodeTable, edgeTable, visualStyle, networkView } = res
 
       addNewNetwork(network)
-      setVisualStyle(networkId, visualStyle)
+      setVisualStyle(networkId, 'default', visualStyle)
       setTables(networkId, nodeTable, edgeTable)
       setViewModel(networkId, networkView)
       window.n = network
