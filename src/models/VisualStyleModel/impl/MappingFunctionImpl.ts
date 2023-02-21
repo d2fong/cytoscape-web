@@ -4,10 +4,16 @@ import {
   ContinuousMappingFunction,
   MappingFunctionType,
   VisualPropertyValueTypeName,
-  VisualPropertyValueType,
+  DiscreteMappingFunction,
+  PassthroughMappingFunction,
 } from '..'
 
-import { CXContinuousMappingFunction } from './cxVisualPropertyConverter'
+import {
+  CXContinuousMappingFunction,
+  CXDiscreteMappingFunction,
+  CXPassthroughMappingFunction,
+  CXVisualPropertyValue,
+} from './cxVisualPropertyConverter'
 
 const valueType2BaseType: Record<ValueTypeName, SingleValueType | null> = {
   [ValueTypeName.String]: 'string',
@@ -53,9 +59,38 @@ export const typesCanBeMapped = (
   return true
 }
 
-export const convertContinuousMappingToCx = (
+export const convertPassthroughMappingToCX = (
+  mapping: PassthroughMappingFunction,
+): CXPassthroughMappingFunction => {
+  const { attribute } = mapping
+
+  return {
+    type: 'PASSTHROUGH',
+    definition: {
+      attribute,
+    },
+  }
+}
+
+export const convertDiscreteMappingToCX = (
+  mapping: DiscreteMappingFunction,
+): CXDiscreteMappingFunction<CXVisualPropertyValue> => {
+  const { vpValueMap, attribute } = mapping
+
+  return {
+    type: 'DISCRETE',
+    definition: {
+      attribute,
+      map: Array.from(vpValueMap.entries()).map(([value, vpValue]) => ({
+        v: value,
+        vp: vpValue,
+      })),
+    },
+  }
+}
+export const convertContinuousMappingToCX = (
   mapping: ContinuousMappingFunction,
-): CXContinuousMappingFunction<VisualPropertyValueType> => {
+): CXContinuousMappingFunction<CXVisualPropertyValue> => {
   const { min, max, controlPoints, attribute } = mapping
 
   const intervals = []
