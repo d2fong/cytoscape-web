@@ -14,6 +14,7 @@ import { MappingForm } from './Forms/MappingForm'
 import { BypassForm } from './Forms/BypassForm'
 import { DefaultValueForm } from './Forms/DefaultValueForm'
 import { EmptyVisualPropertyViewBox } from './Forms/VisualPropertyViewBox'
+import { VisualPropertyGroup } from '../../models/VisualStyleModel/VisualPropertyGroup'
 
 function VisualPropertyView(props: {
   currentNetworkId: IdType
@@ -36,7 +37,7 @@ function VisualPropertyView(props: {
         visualProperty={visualProperty}
         currentNetworkId={currentNetworkId}
       />
-      {visualProperty.group === 'network' ? (
+      {visualProperty.group === VisualPropertyGroup.Network ? (
         <>
           <Tooltip title={'Mapping not available for network properties'}>
             <EmptyVisualPropertyViewBox sx={{ mr: 1, cursor: 'not-allowed' }} />
@@ -156,6 +157,7 @@ export default function VizmapperView(props: {
             sx={{
               ml: 1,
               mb: 1,
+              pt: 1,
               overflow: 'scroll',
               height: props.height - 135, // we want to only scroll the vp list instead of the whole allotment
               // height has to be computed based on allotment size to allow overflow scroll
@@ -172,6 +174,7 @@ export default function VizmapperView(props: {
             sx={{
               ml: 1,
               mb: 1,
+              pt: 1,
               overflow: 'scroll',
               height: props.height - 135,
             }}
@@ -186,6 +189,7 @@ export default function VizmapperView(props: {
             sx={{
               ml: 1,
               mb: 1,
+              pt: 1,
               overflow: 'scroll',
               height: props.height - 135,
             }}

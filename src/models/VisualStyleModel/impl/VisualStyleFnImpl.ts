@@ -1,24 +1,25 @@
 import _ from 'lodash'
 import { Cx2 } from '../../../utils/cx/Cx2'
 import * as cxUtil from '../../../utils/cx/cx2-util'
-import { Network, Node, Edge } from '../../NetworkModel'
-import { Table, ValueType } from '../../TableModel'
+
 import { NetworkView } from '../../ViewModel'
-import {
-  DiscreteMappingFunction,
-  ContinuousMappingFunction,
-} from '../VisualMappingFunction'
-import { ContinuousFunctionControlPoint } from '../VisualMappingFunction/ContinuousMappingFunction'
-import { VisualPropertyName } from '../VisualPropertyName'
+
+import { ValueType } from '../../TableModel'
 
 import {
   VisualStyle,
+  VisualPropertyName,
+  VisualPropertyGroup,
+  ContinuousFunctionControlPoint,
   VisualPropertyValueType,
   VisualProperty,
   Bypass,
+  NetworkViewSources,
+  DiscreteMappingFunction,
+  ContinuousMappingFunction,
+  PassthroughMappingFunction,
+  MappingFunctionType,
 } from '..'
-
-import { cyJsVisualPropertyConverter } from './cyJsVisualPropertyConverter'
 
 import {
   CXId,
@@ -28,38 +29,52 @@ import {
   CXVisualPropertyValue,
 } from './cxVisualPropertyConverter'
 
-import {
-  NodeSingular,
-  Stylesheet,
-  ElementDefinition,
-  ElementGroup,
-  EdgeSingular,
-} from 'cytoscape'
-import { defaultVisualStyle } from './DefaultVisualStyle'
-import { IdType } from '../../IdType'
-import { createCyJsMappingFn } from './MappingFunctionImpl'
+import { getDefaultVisualStyle } from './DefaultVisualStyle'
+import { createNewNetworkView, updateNetworkView } from './compute-view-util'
+
+export const applyVisualStyle = (data: NetworkViewSources): NetworkView => {
+  const { network, visualStyle, nodeTable, edgeTable, networkView } = data
+
+  if (networkView !== undefined) {
+    return updateNetworkView(
+      network,
+      networkView,
+      visualStyle,
+      nodeTable,
+      edgeTable,
+    )
+  } else {
+    return createNewNetworkView(network, visualStyle, nodeTable, edgeTable)
+  }
+}
 
 export const nodeVisualProperties = (
   visualStyle: VisualStyle,
 ): Array<VisualProperty<VisualPropertyValueType>> => {
-  return Object.values(visualStyle).filter((value) => value.group === 'node')
+  return Object.values(visualStyle).filter(
+    (value) => value.group === VisualPropertyGroup.Node,
+  )
 }
 
 export const edgeVisualProperties = (
   visualStyle: VisualStyle,
 ): Array<VisualProperty<VisualPropertyValueType>> => {
-  return Object.values(visualStyle).filter((value) => value.group === 'edge')
+  return Object.values(visualStyle).filter(
+    (value) => value.group === VisualPropertyGroup.Edge,
+  )
 }
 
 export const networkVisualProperties = (
   visualStyle: VisualStyle,
 ): Array<VisualProperty<VisualPropertyValueType>> => {
-  return Object.values(visualStyle).filter((value) => value.group === 'network')
+  return Object.values(visualStyle).filter(
+    (value) => value.group === VisualPropertyGroup.Network,
+  )
 }
 
 export const createVisualStyle = (): VisualStyle => {
   // create new copy of the default style instead of returning the same instance
-  return JSON.parse(JSON.stringify(defaultVisualStyle))
+  return getDefaultVisualStyle()
 }
 
 // convert cx visual properties to app visual style model
@@ -202,12 +217,16 @@ export const createVisualStyleFromCx = (cx: Cx2): VisualStyle => {
 
         if (cxMapping != null) {
           switch (cxMapping.type) {
-            case 'PASSTHROUGH':
-              visualStyle[vpName].mapping = {
-                type: 'passthrough',
+            case 'PASSTHROUGH': {
+              const m: PassthroughMappingFunction = {
+                type: MappingFunctionType.Passthrough,
+                visualPropertyType: vp.type,
                 attribute: cxMapping.definition.attribute,
+                defaultValue: vp.defaultValue,
               }
+              visualStyle[vpName].mapping = m
               break
+            }
             case 'DISCRETE': {
               const vpValueMap = new Map()
               cxMapping.definition.map.forEach((mapEntry) => {
@@ -215,10 +234,11 @@ export const createVisualStyleFromCx = (cx: Cx2): VisualStyle => {
                 vpValueMap.set(v, converter.valueConverter(vp))
               })
               const m: DiscreteMappingFunction = {
-                type: 'discrete',
+                type: MappingFunctionType.Discrete,
                 attribute: cxMapping.definition.attribute,
-                defaultValue: visualStyle[vpName].defaultValue,
                 vpValueMap,
+                visualPropertyType: vp.type,
+                defaultValue: vp.defaultValue,
               }
               visualStyle[vpName].mapping = m
               break
@@ -226,7 +246,8 @@ export const createVisualStyleFromCx = (cx: Cx2): VisualStyle => {
             case 'CONTINUOUS': {
               const numMapEntries = cxMapping.definition.map.length
               if (numMapEntries < 2) {
-                visualStyle[vpName].mapping = null
+                visualStyle[vpName].mapping = undefined
+                break
               }
 
               let min = null
@@ -262,7 +283,11 @@ export const createVisualStyleFromCx = (cx: Cx2): VisualStyle => {
               }
 
               const controlPoints: ContinuousFunctionControlPoint[] = []
-              cxMapping.definition.map.forEach((mapEntry) => {
+
+              // only iterate through the middle entries of the map
+              // i.e. exclue min and max
+              for (let i = 1; i <= numMapEntries - 2; i++) {
+                const mapEntry = cxMapping.definition.map[i]
                 if (mapEntry.minVPValue != null && mapEntry.min != null) {
                   controlPoints.push({
                     value: mapEntry.min as ValueType,
@@ -276,7 +301,7 @@ export const createVisualStyleFromCx = (cx: Cx2): VisualStyle => {
                     vpValue: converter.valueConverter(mapEntry.maxVPValue),
                   })
                 }
-              })
+              }
 
               const uniqueCtrlPts = _.uniqWith(controlPoints, _.isEqual)
 
@@ -286,15 +311,17 @@ export const createVisualStyleFromCx = (cx: Cx2): VisualStyle => {
 
               if (min != null && max != null && controlPoints.length > 0) {
                 const m: ContinuousMappingFunction = {
-                  type: 'continuous',
+                  type: MappingFunctionType.Continuous,
                   attribute: cxMapping.definition.attribute,
                   min,
                   max,
                   controlPoints: sortedCtrlPts,
+                  visualPropertyType: vp.type,
+                  defaultValue: vp.defaultValue,
                 }
                 visualStyle[vpName].mapping = m
               } else {
-                visualStyle[vpName].mapping = null
+                // visualStyle[vpName].mapping = undefined
               }
               break
             }
@@ -316,188 +343,4 @@ export const createVisualStyleFromCx = (cx: Cx2): VisualStyle => {
   })
 
   return visualStyle
-}
-
-export const createCyJsStyleSheetView = (
-  vs: VisualStyle,
-  network: Network,
-  nodeTable: Table,
-  edgeTable: Table,
-  networkView: NetworkView,
-): {
-  defaultStyle: Stylesheet[]
-  cyNodes: ElementDefinition[]
-  cyEdges: ElementDefinition[]
-  nodeBypasses: Record<IdType, Partial<Record<string, VisualPropertyValueType>>>
-  edgeBypasses: Record<IdType, Partial<Record<string, VisualPropertyValueType>>>
-} => {
-  // edge ids are of the form 'e1', 'e2', etc. but our app stores them as '1', '2', etc.
-  const nodeStyle: Record<
-    string,
-    VisualPropertyValueType | ((node: NodeSingular) => VisualPropertyValueType)
-  > = {}
-  const edgeStyle: Record<
-    string,
-    VisualPropertyValueType | ((edge: EdgeSingular) => VisualPropertyValueType)
-  > = {}
-
-  const nodeBypasses: Record<
-    IdType,
-    Partial<Record<string, VisualPropertyValueType>>
-  > = {}
-  const edgeBypasses: Record<
-    IdType,
-    Partial<Record<string, VisualPropertyValueType>>
-  > = {}
-
-  nodeVisualProperties(vs).forEach(
-    (vp: VisualProperty<VisualPropertyValueType>) => {
-      const defaultValue = vp.defaultValue
-      const mapping = vp.mapping
-      const bypassMap = vp.bypassMap
-      const cyStyleName = cyJsVisualPropertyConverter[vp.name]?.cyJsVPName
-
-      if (cyStyleName != null) {
-        nodeStyle[cyStyleName] = defaultValue
-
-        if (mapping != null) {
-          nodeStyle[cyStyleName] = createCyJsMappingFn(
-            mapping,
-            nodeTable,
-            defaultValue,
-          )
-        }
-
-        if (bypassMap != null) {
-          Array.from(bypassMap.entries()).forEach(([cxNodeId, bypassValue]) => {
-            if (nodeBypasses[cxNodeId] != null) {
-              nodeBypasses[cxNodeId][cyStyleName] = bypassValue
-            } else {
-              nodeBypasses[cxNodeId] = {
-                [cyStyleName]: bypassValue,
-              }
-            }
-          })
-        }
-      }
-    },
-  )
-  // default label mapping function (TODO this depends on many assumptions, revist this later)
-  // if there is no default label mapping function defined, define a default label mapping function
-  // looking for the attributes 'n' or 'name'
-  nodeStyle.label =
-    nodeStyle.label === ''
-      ? (nodeStyle.label = (node: NodeSingular): string => {
-          const nodeId = node.data('id')
-          const nodeAttrs = nodeTable.rows.get(nodeId)
-          const name: string =
-            (nodeAttrs?.n as string) ?? (nodeAttrs?.name as string) ?? ''
-          return name
-        })
-      : nodeStyle.label
-
-  nodeStyle['min-zoomed-font-size'] = 14
-
-  edgeVisualProperties(vs).forEach(
-    (vp: VisualProperty<VisualPropertyValueType>) => {
-      const defaultValue = vp.defaultValue
-      const mapping = vp.mapping
-      const bypassMap = vp.bypassMap
-      const cyStyleName = cyJsVisualPropertyConverter[vp.name]?.cyJsVPName
-
-      if (cyStyleName != null) {
-        edgeStyle[cyStyleName] = defaultValue
-        if (mapping != null) {
-          edgeStyle[cyStyleName] = createCyJsMappingFn(
-            mapping,
-            edgeTable,
-            defaultValue,
-          )
-        }
-
-        if (bypassMap != null) {
-          Array.from(bypassMap.entries()).forEach(([cxEdgeId, bypassValue]) => {
-            if (edgeBypasses[cxEdgeId] != null) {
-              edgeBypasses[cxEdgeId][cyStyleName] = bypassValue
-            } else {
-              edgeBypasses[cxEdgeId] = {
-                [cyStyleName]: bypassValue,
-              }
-            }
-          })
-        }
-      }
-    },
-  )
-  edgeStyle['min-zoomed-font-size'] = 14
-  edgeStyle['curve-style'] = 'bezier'
-
-  if (edgeStyle.autorotate === true) {
-    delete edgeStyle.autorotate
-    edgeStyle['text-rotation'] = 'autorotate'
-  }
-
-  const defaultStyle = [
-    {
-      selector: 'node',
-      style: nodeStyle,
-    },
-    {
-      selector: 'edge',
-      style: edgeStyle,
-    },
-    {
-      selector: ':selected',
-      style: {
-        'underlay-color': 'blue',
-        'underlay-padding': 5,
-        'underlay-opacity': 0.5,
-      },
-    },
-    {
-      selector: '.hovered',
-      style: {
-        'underlay-color': 'red',
-        'underlay-padding': 10,
-        'underlay-opacity': 0.8,
-        'z-index': 1,
-      },
-    },
-  ]
-  const cyNodes = network.nodes.map((node: Node) => {
-    const positionX = networkView.nodeViews[node.id]?.x ?? 0
-    const positionY = networkView.nodeViews[node.id]?.y ?? 0
-
-    return {
-      group: 'nodes' as ElementGroup,
-      data: {
-        id: node.id,
-      },
-      position: {
-        x: positionX,
-        y: positionY,
-      },
-    }
-  })
-
-  const cyEdges = network.edges.map((edge: Edge) => {
-    const cyEdge = {
-      group: 'edges' as ElementGroup,
-      data: {
-        id: edge.id,
-        source: edge.s,
-        target: edge.t,
-      },
-    }
-
-    return cyEdge
-  })
-
-  return {
-    defaultStyle,
-    cyNodes,
-    cyEdges,
-    nodeBypasses,
-    edgeBypasses,
-  }
 }

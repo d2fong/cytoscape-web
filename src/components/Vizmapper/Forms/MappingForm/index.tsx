@@ -14,7 +14,7 @@ import {
 } from '@mui/material'
 
 import { IdType } from '../../../../models/IdType'
-import { AttributeName } from '../../../../models/TableModel'
+import { AttributeName, ValueTypeName } from '../../../../models/TableModel'
 import { useVisualStyleStore } from '../../../../store/VisualStyleStore'
 import { useTableStore } from '../../../../store/TableStore'
 
@@ -39,11 +39,12 @@ import {
 
 import { DiscreteMappingForm } from './DiscreteMappingForm'
 import { ContinuousMappingForm } from './ContinuousMappingForm'
+import { VisualPropertyGroup } from '../../../../models/VisualStyleModel/VisualPropertyGroup'
 
 const mappingFnIconMap: Record<MappingFunctionType, React.ReactElement> = {
-  passthrough: <PassthroughMappingFunctionIcon />,
-  discrete: <DiscreteMappingFunctionIcon />,
-  continuous: <ContinuousMappingFunctionIcon />,
+  [MappingFunctionType.Passthrough]: <PassthroughMappingFunctionIcon />,
+  [MappingFunctionType.Discrete]: <DiscreteMappingFunctionIcon />,
+  [MappingFunctionType.Continuous]: <ContinuousMappingFunctionIcon />,
 }
 
 function MappingFormContent(props: {
@@ -76,7 +77,9 @@ function MappingFormContent(props: {
   const nodeTable = tables[props.currentNetworkId]?.nodeTable
   const edgeTable = tables[props.currentNetworkId]?.edgeTable
   const currentTable =
-    props.visualProperty.group === 'node' ? nodeTable : edgeTable
+    props.visualProperty.group === VisualPropertyGroup.Node
+      ? nodeTable
+      : edgeTable
   const columns = Array.from(currentTable.columns.values())
 
   const mappingFnContent = {
@@ -104,9 +107,9 @@ function MappingFormContent(props: {
 
         if (
           attributeDataType != null &&
-          (attributeDataType === 'integer' ||
-            attributeDataType === 'long' ||
-            attributeDataType === 'double')
+          (attributeDataType === ValueTypeName.Integer ||
+            attributeDataType === ValueTypeName.Long ||
+            attributeDataType === ValueTypeName.Double)
         ) {
           const attributeValues = Array.from(
             columnValues(
@@ -119,6 +122,7 @@ function MappingFormContent(props: {
           createContinuousMapping(
             props.currentNetworkId,
             props.visualProperty.name,
+            props.visualProperty.type,
             attribute,
             attributeValues,
           )
@@ -193,15 +197,21 @@ function MappingFormContent(props: {
           typesCanBeMapped(mappingType, c.type, props.visualProperty.type),
         )
       : columns
+
+  const mappingDimensions: Record<MappingFunctionType | '', [string, string]> =
+    {
+      [MappingFunctionType.Discrete]: ['400px', '600px'],
+      [MappingFunctionType.Continuous]: ['650px', 'auto'],
+      [MappingFunctionType.Passthrough]: ['400px', 'auto'],
+      '': ['400px', '200px'],
+    }
   return (
     <Box
       sx={{
         display: 'flex',
         flexDirection: 'column',
-        width: mappingType === 'continuous' ? '600px' : '400px',
-        height: mappingType === 'continuous' ? '420px' : '600px',
-        minWidth: '30vw',
-        minHeight: '30vh',
+        width: mappingDimensions[mappingType][0],
+        height: mappingDimensions[mappingType][1],
         overflow: 'hidden',
         p: 1,
       }}
@@ -213,7 +223,7 @@ function MappingFormContent(props: {
           alignItems: 'center',
         }}
       >
-        <Typography variant="h6">{`${props.visualProperty.displayName} mapping`}</Typography>
+        <Typography>{`${props.visualProperty.displayName} mapping`}</Typography>
         <Button
           disabled={props.visualProperty.mapping == null}
           size="small"
@@ -239,7 +249,7 @@ function MappingFormContent(props: {
             sx={{ minWidth: '150px', maxWidth: '200px' }}
             size="small"
           >
-            <InputLabel>Attribute</InputLabel>
+            <InputLabel>Column</InputLabel>
             <Select
               defaultValue=""
               value={attribute}

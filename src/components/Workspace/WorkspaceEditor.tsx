@@ -22,15 +22,28 @@ import { Workspace } from '../../models/WorkspaceModel'
 import { Summaries as SummaryList } from '../SummaryPanel'
 import { putNetworkViewToDb } from '../../store/persist/db'
 import { NetworkView } from '../../models/ViewModel'
+import { useWorkspaceManager } from '../../store/hooks/useWorkspaceManager'
+
+import { useCredentialStore } from '../../store/CredentialStore'
 
 const NetworkPanel = React.lazy(() => import('../NetworkPanel/NetworkPanel'))
 const TableBrowser = React.lazy(() => import('../TableBrowser/TableBrowser'))
 
 const WorkSpaceEditor: React.FC = () => {
+  useWorkspaceManager()
+
   // Server location
   const { ndexBaseUrl } = useContext(AppConfigContext)
 
   const navigate = useNavigate()
+
+  const getToken: () => Promise<string> = useCredentialStore(
+    (state) => state.getToken,
+  )
+
+  const credentialInitialized: boolean = useCredentialStore(
+    (state) => state.initialized,
+  )
 
   const currentNetworkId: IdType = useWorkspaceStore(
     (state) => state.workspace.currentNetworkId,
@@ -39,26 +52,27 @@ const WorkSpaceEditor: React.FC = () => {
   const setCurrentNetworkId: (id: IdType) => void = useWorkspaceStore(
     (state) => state.setCurrentNetworkId,
   )
-  
-  const setNetworkModified: (id: IdType, isModified: boolean) => void = useWorkspaceStore(
-    (state) => state.setNetworkModified,
-  )
-  
-  useViewModelStore.subscribe((state) => state.viewModels[currentNetworkId], () => {
-    const {networkModified} = workspace
-    const isModified: boolean| undefined = networkModified[currentNetworkId]
-    if (isModified !== undefined && !isModified) {
-      setNetworkModified(currentNetworkId, true)
-    }
-  })
 
+  const setNetworkModified: (id: IdType, isModified: boolean) => void =
+    useWorkspaceStore((state) => state.setNetworkModified)
+
+  useViewModelStore.subscribe(
+    (state) => state.viewModels[currentNetworkId],
+    () => {
+      const { networkModified } = workspace
+      const isModified: boolean | undefined = networkModified[currentNetworkId]
+      if (isModified !== undefined && !isModified) {
+        setNetworkModified(currentNetworkId, true)
+      }
+    },
+  )
 
   // Network Summaries
   const summaries: Record<IdType, NdexNetworkSummary> = useNetworkSummaryStore(
     (state) => state.summaries,
   )
   const fetchAllSummaries = useNetworkSummaryStore((state) => state.fetchAll)
-  const removeSummary = useNetworkSummaryStore((state) => state.remove)
+  const removeSummary = useNetworkSummaryStore((state) => state.delete)
 
   const [tableBrowserHeight, setTableBrowserHeight] = useState(0)
   const [tableBrowserWidth, setTableBrowserWidth] = useState(window.innerWidth)
@@ -84,21 +98,21 @@ const WorkSpaceEditor: React.FC = () => {
   )
 
   const loadNetworkSummaries = async (): Promise<void> => {
-    await fetchAllSummaries(workspace.networkIds, ndexBaseUrl)
+    // Check token first
+    const currentToken = await getToken()
+    await fetchAllSummaries(workspace.networkIds, ndexBaseUrl, currentToken)
   }
 
   const loadCurrentNetworkById = async (networkId: IdType): Promise<void> => {
-    try {
-      const res = await getNdexNetwork(networkId, ndexBaseUrl)
-      const { network, nodeTable, edgeTable, visualStyle, networkView } = res
+    const currentToken = await getToken()
+    // No token available. Just load
+    const res = await getNdexNetwork(networkId, ndexBaseUrl, currentToken)
+    const { network, nodeTable, edgeTable, visualStyle, networkView } = res
 
-      addNewNetwork(network)
-      setVisualStyle(networkId, visualStyle)
-      setTables(networkId, nodeTable, edgeTable)
-      setViewModel(networkId, networkView)
-    } catch (err) {
-      console.error(err)
-    }
+    addNewNetwork(network)
+    setVisualStyle(networkId, visualStyle)
+    setTables(networkId, nodeTable, edgeTable)
+    setViewModel(networkId, networkView)
   }
 
   /**
@@ -119,6 +133,9 @@ const WorkSpaceEditor: React.FC = () => {
    * Check number of networks in the workspace
    */
   useEffect(() => {
+    if (!credentialInitialized) {
+      return
+    }
     const networkCount: number = workspace.networkIds.length
     const summaryCount: number = Object.keys(summaries).length
 
@@ -152,7 +169,7 @@ const WorkSpaceEditor: React.FC = () => {
     loadNetworkSummaries()
       .then(() => {})
       .catch((err) => console.error(err))
-  }, [workspace.networkIds])
+  }, [workspace.networkIds, credentialInitialized])
 
   /**
    * Swap the current network, can be an expensive operation
@@ -212,7 +229,7 @@ const WorkSpaceEditor: React.FC = () => {
       >
         <Allotment.Pane>
           <Allotment>
-            <Allotment.Pane preferredSize="20%">
+            <Allotment.Pane preferredSize="25%">
               <Box
                 sx={{
                   height: '100%',
@@ -243,6 +260,8 @@ const WorkSpaceEditor: React.FC = () => {
                         // need to set a height to enable scroll in the network list
                         // 48 is the height of the tool bar
                         width: '100%',
+                        padding: 0,
+                        margin: 0,
                       }}
                     >
                       <SummaryList summaries={summaries} />
